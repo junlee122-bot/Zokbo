@@ -45,22 +45,25 @@ if (!token || !parent) {
 
 const sel = (names) => ({ select: { options: names.map((name) => ({ name })) } });
 
+// Notion API 2025-09-03+ : 스키마(properties)는 initial_data_source 아래에 둡니다.
+const properties = {
+  "제목": { title: {} },
+  "과목": { rich_text: {} },
+  "학년": { rich_text: {} },
+  "연도": { number: {} },
+  "학기": sel(["1학기", "2학기", "여름", "겨울"]),
+  "시험종류": sel(["중간고사", "기말고사", "수행평가", "모의고사", "기타"]),
+  "태그": { multi_select: { options: [] } },
+  "공개범위": sel(["private", "all", "specific"]),
+  "소유자": { rich_text: {} },
+  "설명": { rich_text: {} },
+  "파일": { files: {} },
+};
+
 const body = {
   parent: { type: "page_id", page_id: parent },
   title: [{ type: "text", text: { content: "Zokbo Files" } }],
-  properties: {
-    "제목": { title: {} },
-    "과목": { rich_text: {} },
-    "학년": { rich_text: {} },
-    "연도": { number: {} },
-    "학기": sel(["1학기", "2학기", "여름", "겨울"]),
-    "시험종류": sel(["중간고사", "기말고사", "수행평가", "모의고사", "기타"]),
-    "태그": { multi_select: { options: [] } },
-    "공개범위": sel(["private", "all", "specific"]),
-    "소유자": { rich_text: {} },
-    "설명": { rich_text: {} },
-    "파일": { files: {} },
-  },
+  initial_data_source: { properties },
 };
 
 const res = await fetch("https://api.notion.com/v1/databases", {

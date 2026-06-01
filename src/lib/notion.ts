@@ -15,6 +15,20 @@ function dbId(): string {
   return id;
 }
 
+// Notion API 2025-09-03+ 에서는 데이터베이스가 "data source" 를 가지며,
+// 쿼리/생성은 data source 기준입니다. DB ID 로부터 한 번 조회해 캐시합니다.
+let cachedDataSourceId: string | null = null;
+async function dataSourceId(): Promise<string> {
+  if (cachedDataSourceId) return cachedDataSourceId;
+  const db = await notion<{ data_sources?: { id: string }[] }>(`/databases/${dbId()}`);
+  const ds = db.data_sources?.[0]?.id;
+  if (!ds) {
+    throw new Error("데이터 소스를 찾을 수 없습니다. NOTION_FILES_DB_ID 를 확인하세요.");
+  }
+  cachedDataSourceId = ds;
+  return ds;
+}
+
 /** JSON Notion API 호출. */
 async function notion<T = any>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {
@@ -142,6 +156,7 @@ export interface FileFilters {
 export async function queryFiles(filters: FileFilters = {}): Promise<ExamFile[]> {
   const results: any[] = [];
   let cursor: string | undefined = undefined;
+  const dsId = await dataSourceId();
 
   do {
     const body: any = {
@@ -150,7 +165,7 @@ export async function queryFiles(filters: FileFilters = {}): Promise<ExamFile[]>
     };
     if (cursor) body.start_cursor = cursor;
     const data = await notion<{ results: any[]; has_more: boolean; next_cursor: string | null }>(
-      `/databases/${dbId()}/query`,
+      `/data_sources/${dsId}/query`,
       { method: "POST", body: JSON.stringify(body) }
     );
     results.push(...data.results);
@@ -186,7 +201,7 @@ export async function queryFiles(filters: FileFilters = {}): Promise<ExamFile[]>
 export async function getFile(id: string): Promise<ExamFile | null> {
   try {
     const page = await notion(`/pages/${id}`);
-    if ((page as any).archived) return null;
+    if ((page as any).in_trash || (page as any).archived) return null;
     return mapPage(page);
   } catch {
     return null;
@@ -207,7 +222,10 @@ export async function createFilePage(
   };
   const page = await notion<{ id: string }>(`/pages`, {
     method: "POST",
-    body: JSON.stringify({ parent: { database_id: dbId() }, properties }),
+    body: JSON.stringify({
+      parent: { type: "data_source_id", data_source_id: await dataSourceId() },
+      properties,
+    }),
   });
   return page.id;
 }
@@ -220,11 +238,11 @@ export async function updateFileMeta(id: string, meta: FileMeta): Promise<void> 
   });
 }
 
-/** 파일 페이지 삭제(보관 처리). */
+/** 파일 페이지 삭제(휴지통 이동). */
 export async function deleteFilePage(id: string): Promise<void> {
   await notion(`/pages/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ archived: true }),
+    body: JSON.stringify({ in_trash: true }),
   });
 }
 
