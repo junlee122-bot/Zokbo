@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { FileRow } from "@/lib/database.types";
-import { VISIBILITY_LABELS, formatBytes } from "@/lib/constants";
+import type { ExamFile } from "@/lib/notion";
+import { VISIBILITY_LABELS } from "@/lib/constants";
 
 const VIS_BADGE: Record<string, string> = {
   private: "bg-slate-100 text-slate-600",
@@ -8,15 +8,12 @@ const VIS_BADGE: Record<string, string> = {
   specific: "bg-amber-100 text-amber-700",
 };
 
-export function FileCard({
-  file,
-  ownerLabel,
-}: {
-  file: FileRow;
-  ownerLabel?: string;
-}) {
+export function FileCard({ file }: { file: ExamFile }) {
   return (
-    <Link href={`/dashboard/files/${file.id}`} className="card block p-4 hover:border-brand-300 hover:shadow-md transition">
+    <Link
+      href={`/dashboard/files/${file.id}`}
+      className="card block p-4 transition hover:border-brand-300 hover:shadow-md"
+    >
       <div className="flex items-start justify-between gap-2">
         <h3 className="line-clamp-2 font-semibold text-slate-800">{file.title}</h3>
         <span className={`badge shrink-0 ${VIS_BADGE[file.visibility]}`}>
@@ -29,7 +26,7 @@ export function FileCard({
         {file.grade && <Meta>{file.grade}</Meta>}
         {file.year && <Meta>{file.year}년</Meta>}
         {file.semester && <Meta>{file.semester}</Meta>}
-        {file.exam_type && <Meta>{file.exam_type}</Meta>}
+        {file.examType && <Meta>{file.examType}</Meta>}
       </div>
 
       {file.tags.length > 0 && (
@@ -40,13 +37,8 @@ export function FileCard({
         </div>
       )}
 
-      <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-        <span className="truncate">{file.file_name}</span>
-        <span className="shrink-0">{formatBytes(file.size_bytes)}</span>
-      </div>
-
-      {ownerLabel && (
-        <div className="mt-1 text-xs text-slate-400">올린이: {ownerLabel}</div>
+      {file.fileName && (
+        <div className="mt-3 truncate text-xs text-slate-400">{file.fileName}</div>
       )}
     </Link>
   );

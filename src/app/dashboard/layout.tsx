@@ -1,16 +1,16 @@
 import { Nav } from "@/components/Nav";
-import { requireProfile } from "@/lib/auth";
+import { requireSession } from "@/lib/auth";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const profile = await requireProfile();
+  await requireSession();
 
   return (
     <div className="min-h-screen">
-      <Nav profile={profile} />
+      <Nav />
       <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
     </div>
   );

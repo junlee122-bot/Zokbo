@@ -1,57 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireProfile } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { VISIBILITY_LABELS, formatBytes, isPreviewable } from "@/lib/constants";
+import { getFile } from "@/lib/notion";
+import { VISIBILITY_LABELS, isPreviewable } from "@/lib/constants";
 import { FileViewer } from "@/components/FileViewer";
 import { FileManagePanel } from "@/components/FileManagePanel";
 
 export const dynamic = "force-dynamic";
 
-export default async function FileDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const profile = await requireProfile();
-  const supabase = createClient();
-
-  const { data: file } = await supabase
-    .from("files")
-    .select("*")
-    .eq("id", params.id)
-    .single();
-
+export default async function FileDetailPage({ params }: { params: { id: string } }) {
+  const file = await getFile(params.id);
   if (!file) notFound();
-
-  const canManage = file.owner_id === profile.id || profile.role === "admin";
-
-  // 올린이 라벨
-  const { data: owner } = await supabase
-    .from("profiles")
-    .select("full_name, email")
-    .eq("id", file.owner_id)
-    .single();
-
-  // 관리 권한자에게만: 멤버 목록 + 현재 공유 대상
-  let members: { id: string; label: string }[] = [];
-  let sharedWith: string[] = [];
-  if (canManage) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, full_name, email")
-      .neq("id", file.owner_id);
-    members = (profiles ?? []).map((p) => ({
-      id: p.id,
-      label: p.full_name ? `${p.full_name} (${p.email})` : p.email,
-    }));
-
-    const { data: shares } = await supabase
-      .from("file_shares")
-      .select("shared_with")
-      .eq("file_id", file.id);
-    sharedWith = (shares ?? []).map((s) => s.shared_with);
-  }
 
   return (
     <div>
@@ -60,7 +18,6 @@ export default async function FileDetailPage({
       </Link>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* 본문: 미리보기 */}
         <div className="lg:col-span-2">
           <div className="card p-5">
             <div className="mb-4 flex items-start justify-between gap-3">
@@ -69,17 +26,14 @@ export default async function FileDetailPage({
                 {VISIBILITY_LABELS[file.visibility]}
               </span>
             </div>
-
             <FileViewer
               fileId={file.id}
-              previewable={isPreviewable(file.mime_type)}
-              mime={file.mime_type}
-              fileName={file.file_name}
+              previewable={isPreviewable(file.mime)}
+              hasFile={!!file.fileName}
             />
           </div>
         </div>
 
-        {/* 사이드: 메타 + 관리 */}
         <div className="space-y-6">
           <div className="card p-5">
             <h2 className="mb-3 font-semibold">분류 정보</h2>
@@ -88,14 +42,9 @@ export default async function FileDetailPage({
               <Row label="학년" value={file.grade} />
               <Row label="연도" value={file.year ? `${file.year}년` : null} />
               <Row label="학기" value={file.semester} />
-              <Row label="시험종류" value={file.exam_type} />
-              <Row label="파일명" value={file.file_name} />
-              <Row label="크기" value={formatBytes(file.size_bytes)} />
-              <Row label="올린이" value={owner?.full_name || owner?.email || "-"} />
-              <Row
-                label="등록일"
-                value={new Date(file.created_at).toLocaleString("ko-KR")}
-              />
+              <Row label="시험종류" value={file.examType} />
+              <Row label="파일명" value={file.fileName} />
+              <Row label="등록일" value={new Date(file.createdAt).toLocaleString("ko-KR")} />
             </dl>
 
             {file.tags.length > 0 && (
@@ -113,13 +62,7 @@ export default async function FileDetailPage({
             )}
           </div>
 
-          {canManage && (
-            <FileManagePanel
-              file={file}
-              members={members}
-              initialSharedWith={sharedWith}
-            />
-          )}
+          <FileManagePanel file={file} />
         </div>
       </div>
     </div>

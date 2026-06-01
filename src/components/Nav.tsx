@@ -1,10 +1,7 @@
 import Link from "next/link";
-import type { Profile } from "@/lib/database.types";
-import { ROLE_LABELS } from "@/lib/constants";
+import { logout } from "@/app/login/actions";
 
-export function Nav({ profile }: { profile: Profile }) {
-  const canUpload = profile.role === "admin" || profile.role === "uploader";
-
+export function Nav() {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
@@ -12,34 +9,16 @@ export function Nav({ profile }: { profile: Profile }) {
           <Link href="/dashboard" className="text-xl font-bold text-brand-600">
             Zokbo
           </Link>
-          <nav className="hidden items-center gap-1 sm:flex">
-            <NavLink href="/dashboard">내 파일</NavLink>
-            <NavLink href="/dashboard/shared">공유받은 파일</NavLink>
-            {canUpload && <NavLink href="/dashboard/upload">업로드</NavLink>}
-            {profile.role === "admin" && <NavLink href="/dashboard/admin">관리</NavLink>}
+          <nav className="flex items-center gap-1">
+            <NavLink href="/dashboard">자료 목록</NavLink>
+            <NavLink href="/dashboard/upload">업로드</NavLink>
           </nav>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="hidden text-right sm:block">
-            <div className="text-sm font-medium text-slate-700">
-              {profile.full_name || profile.email}
-            </div>
-            <div className="text-xs text-slate-400">{ROLE_LABELS[profile.role]}</div>
-          </div>
-          <form action="/auth/signout" method="post">
-            <button className="btn-secondary" type="submit">로그아웃</button>
-          </form>
-        </div>
+        <form action={logout}>
+          <button className="btn-secondary" type="submit">잠그기</button>
+        </form>
       </div>
-
-      {/* 모바일 네비 */}
-      <nav className="flex items-center gap-1 overflow-x-auto border-t border-slate-100 px-4 py-2 sm:hidden">
-        <NavLink href="/dashboard">내 파일</NavLink>
-        <NavLink href="/dashboard/shared">공유받은</NavLink>
-        {canUpload && <NavLink href="/dashboard/upload">업로드</NavLink>}
-        {profile.role === "admin" && <NavLink href="/dashboard/admin">관리</NavLink>}
-      </nav>
     </header>
   );
 }

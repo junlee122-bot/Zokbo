@@ -2,15 +2,17 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { STORAGE_BUCKET, SEMESTERS, EXAM_TYPES, formatBytes } from "@/lib/constants";
+import {
+  SEMESTERS,
+  EXAM_TYPES,
+  VISIBILITY_LABELS,
+  FREE_TIER_WARN_BYTES,
+  MAX_UPLOAD_BYTES,
+  formatBytes,
+  type FileVisibility,
+} from "@/lib/constants";
 
-/** 파일명에서 스토리지 경로에 안전하지 않은 문자를 정리. */
-function sanitize(name: string) {
-  return name.replace(/[^\w.\-가-힣ㄱ-ㅎㅏ-ㅣ]/g, "_");
-}
-
-export function FileUploader({ userId }: { userId: string }) {
+export function FileUploader() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -22,11 +24,15 @@ export function FileUploader({ userId }: { userId: string }) {
   const [year, setYear] = useState("");
   const [semester, setSemester] = useState("");
   const [examType, setExamType] = useState("");
-  const [tagsInput, setTagsInput] = useState("");
+  const [tags, setTags] = useState("");
   const [description, setDescription] = useState("");
+  const [visibility, setVisibility] = useState<FileVisibility>("private");
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const tooBig = file && file.size > MAX_UPLOAD_BYTES;
+  const overFree = file && file.size > FREE_TIER_WARN_BYTES && !tooBig;
 
   function pick(f: File | null) {
     setFile(f);
@@ -36,69 +42,36 @@ export function FileUploader({ userId }: { userId: string }) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!file) {
-      setError("파일을 선택하세요.");
-      return;
-    }
+    if (!file) return setError("파일을 선택하세요.");
+    if (tooBig) return setError(`파일이 너무 큽니다(최대 ${MAX_UPLOAD_BYTES / 1024 / 1024}MB).`);
+
     setBusy(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("title", title);
+    fd.append("subject", subject);
+    fd.append("grade", grade);
+    fd.append("year", year);
+    fd.append("semester", semester);
+    fd.append("examType", examType);
+    fd.append("tags", tags);
+    fd.append("description", description);
+    fd.append("visibility", visibility);
 
-    const supabase = createClient();
-    const id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const path = `${userId}/${id}/${sanitize(file.name)}`;
-
-    // 1) Storage 업로드 (비공개 버킷)
-    const { error: upErr } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(path, file, { contentType: file.type || undefined, upsert: false });
-
-    if (upErr) {
-      setError(`업로드 실패: ${upErr.message}`);
+    try {
+      const res = await fetch("/api/files", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "업로드 실패");
+      router.push(`/dashboard/files/${json.id}`);
+      router.refresh();
+    } catch (err) {
+      setError((err as Error).message);
       setBusy(false);
-      return;
     }
-
-    // 2) 메타정보 DB insert
-    const tags = tagsInput
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-
-    const { error: dbErr } = await supabase.from("files").insert({
-      id,
-      owner_id: userId,
-      title: title.trim() || file.name,
-      subject: subject.trim() || null,
-      grade: grade.trim() || null,
-      year: year && /^\d+$/.test(year) ? Number(year) : null,
-      semester: semester || null,
-      exam_type: examType || null,
-      description: description.trim() || null,
-      tags,
-      storage_path: path,
-      file_name: file.name,
-      mime_type: file.type || null,
-      size_bytes: file.size,
-      visibility: "private",
-    });
-
-    if (dbErr) {
-      // 롤백: 올린 객체 제거
-      await supabase.storage.from(STORAGE_BUCKET).remove([path]);
-      setError(`저장 실패: ${dbErr.message}`);
-      setBusy(false);
-      return;
-    }
-
-    router.push(`/dashboard/files/${id}`);
-    router.refresh();
   }
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
-      {/* 드롭존 */}
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -136,6 +109,18 @@ export function FileUploader({ userId }: { userId: string }) {
         )}
       </div>
 
+      {overFree && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          ⚠️ 5MB를 넘습니다. Notion <b>무료 워크스페이스</b>는 파일당 5MB까지만 허용해 업로드가 거부될 수 있어요.
+          (유료 플랜이면 무시하세요.)
+        </p>
+      )}
+      {tooBig && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          이 파일은 {MAX_UPLOAD_BYTES / 1024 / 1024}MB를 넘어 업로드할 수 없습니다.
+        </p>
+      )}
+
       <div>
         <label className="label">제목 *</label>
         <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required />
@@ -168,11 +153,19 @@ export function FileUploader({ userId }: { userId: string }) {
             {EXAM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
+        <div>
+          <label className="label">공개범위</label>
+          <select className="input" value={visibility} onChange={(e) => setVisibility(e.target.value as FileVisibility)}>
+            {(Object.keys(VISIBILITY_LABELS) as FileVisibility[]).map((v) => (
+              <option key={v} value={v}>{VISIBILITY_LABELS[v]}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div>
         <label className="label">태그 (쉼표로 구분)</label>
-        <input className="input" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="미적분, 내신, 어려움" />
+        <input className="input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="미적분, 내신, 어려움" />
       </div>
 
       <div>
@@ -183,7 +176,7 @@ export function FileUploader({ userId }: { userId: string }) {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex gap-3">
-        <button type="submit" className="btn-primary" disabled={busy}>
+        <button type="submit" className="btn-primary" disabled={busy || !!tooBig}>
           {busy ? "업로드 중…" : "업로드"}
         </button>
         <button type="button" className="btn-secondary" onClick={() => router.back()} disabled={busy}>
