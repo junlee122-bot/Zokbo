@@ -52,8 +52,8 @@ export default async function FileDetailPage({ params }: { params: { id: string 
 
         <div className="space-y-6">
           <div className="card p-5">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400">분류 정보</h2>
-            <dl className="space-y-2.5 text-sm">
+            <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">분류 정보</h2>
+            <dl className="divide-y divide-slate-100 text-sm">
               <Row label="과목" value={file.subject} />
               <Row label="학년" value={file.grade} />
               <Row label="연도" value={file.year ? `${file.year}년` : null} />
@@ -87,7 +87,7 @@ export default async function FileDetailPage({ params }: { params: { id: string 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
       <dt className="text-slate-400">{label}</dt>
       <dd className="text-right font-medium text-slate-700">{value}</dd>
     </div>

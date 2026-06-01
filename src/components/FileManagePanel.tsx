@@ -63,13 +63,13 @@ export function FileManagePanel({ file }: { file: ExamFile }) {
   }
 
   return (
-    <div className="card space-y-5 p-5">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-slate-400">관리</h2>
+    <div className="card space-y-6 p-5">
+      <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">관리</h2>
 
       {/* 공개범위 세그먼트 */}
       <div>
-        <label className="label">공개범위</label>
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+        <p className="mb-2 text-sm font-semibold text-slate-700">공개범위</p>
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100/80 p-1">
           {(Object.keys(VISIBILITY_LABELS) as FileVisibility[]).map((v) => {
             const Icon = VIS_ICON[v];
             const active = form.visibility === v;
@@ -88,15 +88,14 @@ export function FileManagePanel({ file }: { file: ExamFile }) {
             );
           })}
         </div>
-        <p className="mt-2 text-xs text-slate-400">
+        <p className="mt-2 text-xs leading-relaxed text-slate-400">
           지금은 개인용이라 표시만 됩니다. 나중에 멤버를 추가하면 이 값으로 공유가 적용됩니다.
         </p>
       </div>
 
-      <hr className="border-slate-100" />
-
+      {/* 수정 / 삭제 */}
       {editing ? (
-        <div className="space-y-3">
+        <div className="space-y-3 border-t border-slate-100 pt-5">
           <Field label="제목"><input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
           <div className="grid grid-cols-2 gap-2">
             <Field label="과목"><input className="input" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} /></Field>
@@ -123,16 +122,15 @@ export function FileManagePanel({ file }: { file: ExamFile }) {
           </div>
         </div>
       ) : (
-        <button className="btn-secondary w-full" onClick={() => setEditing(true)}>
-          <EditIcon width={17} height={17} /> 분류 정보 수정
-        </button>
+        <div className="flex gap-2 border-t border-slate-100 pt-5">
+          <button className="btn-secondary flex-1" onClick={() => setEditing(true)}>
+            <EditIcon width={17} height={17} /> 수정
+          </button>
+          <button className="btn-soft-danger" onClick={remove} disabled={pending} aria-label="자료 삭제">
+            <TrashIcon width={17} height={17} /> 삭제
+          </button>
+        </div>
       )}
-
-      <hr className="border-slate-100" />
-
-      <button className="btn-danger w-full" onClick={remove} disabled={pending}>
-        <TrashIcon width={17} height={17} /> 자료 삭제
-      </button>
     </div>
   );
 }
