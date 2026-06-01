@@ -149,7 +149,7 @@ export interface FileFilters {
   grade?: string;
   year?: string;
   semester?: string;
-  examType?: string;
+  exam_type?: string;
 }
 
 /** DB 의 모든 파일을 가져와(페이지네이션) 메타 필터를 적용. */
@@ -178,7 +178,7 @@ export async function queryFiles(filters: FileFilters = {}): Promise<ExamFile[]>
   if (filters.subject) files = files.filter((f) => norm(f.subject).includes(norm(filters.subject!)));
   if (filters.grade) files = files.filter((f) => norm(f.grade).includes(norm(filters.grade!)));
   if (filters.semester) files = files.filter((f) => f.semester === filters.semester);
-  if (filters.examType) files = files.filter((f) => f.examType === filters.examType);
+  if (filters.exam_type) files = files.filter((f) => f.examType === filters.exam_type);
   if (filters.year && /^\d+$/.test(filters.year)) {
     files = files.filter((f) => f.year === Number(filters.year));
   }

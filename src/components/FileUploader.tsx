@@ -2,6 +2,8 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
+import { FileTypeBadge, UploadIcon, XIcon } from "@/components/icons";
 import {
   SEMESTERS,
   EXAM_TYPES,
@@ -14,6 +16,7 @@ import {
 
 export function FileUploader() {
   const router = useRouter();
+  const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -29,7 +32,6 @@ export function FileUploader() {
   const [visibility, setVisibility] = useState<FileVisibility>("private");
 
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const tooBig = file && file.size > MAX_UPLOAD_BYTES;
   const overFree = file && file.size > FREE_TIER_WARN_BYTES && !tooBig;
@@ -41,9 +43,8 @@ export function FileUploader() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    if (!file) return setError("파일을 선택하세요.");
-    if (tooBig) return setError(`파일이 너무 큽니다(최대 ${MAX_UPLOAD_BYTES / 1024 / 1024}MB).`);
+    if (!file) return toast("파일을 먼저 선택하세요.", "error");
+    if (tooBig) return toast(`파일이 너무 큽니다(최대 ${MAX_UPLOAD_BYTES / 1024 / 1024}MB).`, "error");
 
     setBusy(true);
     const fd = new FormData();
@@ -62,16 +63,18 @@ export function FileUploader() {
       const res = await fetch("/api/files", { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "업로드 실패");
+      toast("업로드 완료!", "success");
       router.push(`/dashboard/files/${json.id}`);
       router.refresh();
     } catch (err) {
-      setError((err as Error).message);
+      toast((err as Error).message, "error");
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form onSubmit={onSubmit} className="space-y-6">
+      {/* 드롭존 */}
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -83,11 +86,38 @@ export function FileUploader() {
           setDragOver(false);
           pick(e.dataTransfer.files?.[0] ?? null);
         }}
-        onClick={() => inputRef.current?.click()}
-        className={`card flex cursor-pointer flex-col items-center justify-center gap-2 border-2 border-dashed p-10 text-center ${
-          dragOver ? "border-brand-500 bg-brand-50" : "border-slate-300"
-        }`}
       >
+        {file ? (
+          <div className="card flex items-center gap-4 p-4">
+            <FileTypeBadge mime={file.type || null} fileName={file.name} size="lg" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold text-slate-800">{file.name}</p>
+              <p className="text-sm text-slate-400">{formatBytes(file.size)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFile(null)}
+              className="btn-ghost h-9 w-9 p-0"
+              aria-label="파일 제거"
+            >
+              <XIcon width={18} height={18} />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className={`flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-12 text-center transition-colors ${
+              dragOver ? "border-brand-400 bg-brand-50" : "border-slate-300 bg-white hover:border-brand-300 hover:bg-slate-50"
+            }`}
+          >
+            <span className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-colors ${dragOver ? "bg-brand-100 text-brand-600" : "bg-slate-100 text-slate-400"}`}>
+              <UploadIcon width={26} height={26} />
+            </span>
+            <span className="font-semibold text-slate-700">파일을 끌어다 놓거나 클릭해 선택</span>
+            <span className="text-xs text-slate-400">PDF · 이미지 · 한글 · 워드 · PPT · 엑셀 등</span>
+          </button>
+        )}
         <input
           ref={inputRef}
           type="file"
@@ -95,94 +125,91 @@ export function FileUploader() {
           accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.hwp,.hwpx,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/*,application/pdf"
           onChange={(e) => pick(e.target.files?.[0] ?? null)}
         />
-        {file ? (
-          <>
-            <p className="font-medium text-slate-700">{file.name}</p>
-            <p className="text-sm text-slate-400">{formatBytes(file.size)}</p>
-            <span className="text-xs text-brand-600">다른 파일로 바꾸려면 클릭</span>
-          </>
-        ) : (
-          <>
-            <p className="font-medium text-slate-600">파일을 끌어다 놓거나 클릭해 선택</p>
-            <p className="text-xs text-slate-400">PDF · 이미지 · 한글/워드 등</p>
-          </>
-        )}
       </div>
 
       {overFree && (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
-          ⚠️ 5MB를 넘습니다. Notion <b>무료 워크스페이스</b>는 파일당 5MB까지만 허용해 업로드가 거부될 수 있어요.
-          (유료 플랜이면 무시하세요.)
-        </p>
+        <div className="flex items-start gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-700">
+          <span>⚠️</span>
+          <p>5MB를 넘습니다. Notion <b>무료 워크스페이스</b>는 파일당 5MB까지만 허용해 업로드가 거부될 수 있어요. (유료 플랜이면 무시)</p>
+        </div>
       )}
       {tooBig && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
           이 파일은 {MAX_UPLOAD_BYTES / 1024 / 1024}MB를 넘어 업로드할 수 없습니다.
-        </p>
+        </div>
       )}
 
-      <div>
-        <label className="label">제목 *</label>
-        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required />
-      </div>
+      {/* 메타 */}
+      <div className="card space-y-5 p-5">
+        <div>
+          <label className="label">제목 *</label>
+          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="자료 제목" />
+        </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div>
-          <label className="label">과목</label>
-          <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="수학" />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <Field label="과목"><input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="수학" /></Field>
+          <Field label="학년"><input className="input" value={grade} onChange={(e) => setGrade(e.target.value)} placeholder="고2" /></Field>
+          <Field label="연도"><input className="input" type="number" value={year} onChange={(e) => setYear(e.target.value)} placeholder="2025" /></Field>
+          <Field label="학기">
+            <select className="input" value={semester} onChange={(e) => setSemester(e.target.value)}>
+              <option value="">선택</option>
+              {SEMESTERS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+          <Field label="시험종류">
+            <select className="input" value={examType} onChange={(e) => setExamType(e.target.value)}>
+              <option value="">선택</option>
+              {EXAM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </Field>
+          <Field label="공개범위">
+            <select className="input" value={visibility} onChange={(e) => setVisibility(e.target.value as FileVisibility)}>
+              {(Object.keys(VISIBILITY_LABELS) as FileVisibility[]).map((v) => (
+                <option key={v} value={v}>{VISIBILITY_LABELS[v]}</option>
+              ))}
+            </select>
+          </Field>
         </div>
-        <div>
-          <label className="label">학년</label>
-          <input className="input" value={grade} onChange={(e) => setGrade(e.target.value)} placeholder="고2" />
-        </div>
-        <div>
-          <label className="label">연도</label>
-          <input className="input" type="number" value={year} onChange={(e) => setYear(e.target.value)} placeholder="2025" />
-        </div>
-        <div>
-          <label className="label">학기</label>
-          <select className="input" value={semester} onChange={(e) => setSemester(e.target.value)}>
-            <option value="">선택</option>
-            {SEMESTERS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="label">시험종류</label>
-          <select className="input" value={examType} onChange={(e) => setExamType(e.target.value)}>
-            <option value="">선택</option>
-            {EXAM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="label">공개범위</label>
-          <select className="input" value={visibility} onChange={(e) => setVisibility(e.target.value as FileVisibility)}>
-            {(Object.keys(VISIBILITY_LABELS) as FileVisibility[]).map((v) => (
-              <option key={v} value={v}>{VISIBILITY_LABELS[v]}</option>
-            ))}
-          </select>
-        </div>
-      </div>
 
-      <div>
-        <label className="label">태그 (쉼표로 구분)</label>
-        <input className="input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="미적분, 내신, 어려움" />
+        <Field label="태그 (쉼표로 구분)">
+          <input className="input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="미적분, 내신, 어려움" />
+        </Field>
+        <Field label="설명">
+          <textarea className="input min-h-[84px] resize-y" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="메모 (선택)" />
+        </Field>
       </div>
-
-      <div>
-        <label className="label">설명</label>
-        <textarea className="input min-h-[80px]" value={description} onChange={(e) => setDescription(e.target.value)} />
-      </div>
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex gap-3">
-        <button type="submit" className="btn-primary" disabled={busy || !!tooBig}>
-          {busy ? "업로드 중…" : "업로드"}
+        <button type="submit" className="btn-primary flex-1" disabled={busy || !!tooBig}>
+          {busy ? (
+            <>
+              <Spinner /> 업로드 중…
+            </>
+          ) : (
+            <>
+              <UploadIcon width={18} height={18} /> 업로드
+            </>
+          )}
         </button>
         <button type="button" className="btn-secondary" onClick={() => router.back()} disabled={busy}>
           취소
         </button>
       </div>
     </form>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="label">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
   );
 }
